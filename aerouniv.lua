@@ -19,21 +19,20 @@ local AutoDetectAdmins = true
 local CurrentMode = "HELI"
 local Angle = 0
 
--- // GUI SETUP
+-- // GUI SETUP (UKURAN DIKECILKAN)
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "AeroV1_RGB_Edition"
+ScreenGui.Name = "AeroV1_UltraMini"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 180, 0, 200)
+MainFrame.Size = UDim2.new(0, 180, 0, 200) -- Ukuran lebih ramping (180x200)
 MainFrame.Position = UDim2.new(0.5, -90, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12) -- Lebih gelap
 MainFrame.Active = true
 MainFrame.Draggable = true
 
--- // RGB STROKE (RAINBOW BORDER)
 local UIStroke = Instance.new("UIStroke", MainFrame)
-UIStroke.Thickness = 2
-UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+UIStroke.Thickness = 1.5
+UIStroke.Color = Color3.fromRGB(0, 255, 150)
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 30)
@@ -48,9 +47,9 @@ local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
 ScrollFrame.Size = UDim2.new(1, -6, 1, -35)
 ScrollFrame.Position = UDim2.new(0, 3, 0, 32)
 ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260)
-ScrollFrame.ScrollBarThickness = 2
-ScrollFrame.ScrollBarImageColor3 = Color3.new(1,1,1)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260) -- Tetap bisa scroll banyak fitur
+ScrollFrame.ScrollBarThickness = 3
+ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 150)
 
 local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
 UIListLayout.Padding = UDim.new(0, 6)
@@ -62,25 +61,32 @@ local function CreateButton(name, text, order, color)
     local btn = Instance.new("TextButton", ScrollFrame)
     btn.Name = name
     btn.LayoutOrder = order 
-    btn.Size = UDim2.new(0.92, 0, 0, 32)
+    btn.Size = UDim2.new(0.92, 0, 0, 32) -- Tombol sedikit lebih pendek
     btn.BackgroundColor3 = color or Color3.fromRGB(25, 25, 25)
     btn.TextColor3 = Color3.new(1, 1, 1)
     btn.Font = Enum.Font.SourceSans
     btn.TextSize = 13
     btn.Text = text
     btn.BorderSizePixel = 0
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+    
+    -- Rounded Corners
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 4)
+    
     return btn
 end
 
+-- // INSTANTIATE BUTTONS (URUTAN SESUAI REQUEST)
 local ModeBtn = CreateButton("ModeBtn", "MODE: HELI", 1)
 local TargetBtn = CreateButton("TargetBtn", "SELECT TARGET", 2)
 local ViewBtn = CreateButton("ViewBtn", "VIEW: OFF", 3)
-local FlingBtn = CreateButton("FlingBtn", "LAUNCH", 4, Color3.fromRGB(0, 70, 50))
+local FlingBtn = CreateButton("FlingBtn", "LAUNCH FLING", 4, Color3.fromRGB(0, 70, 50))
 local DetectBtn = CreateButton("DetectBtn", "DETECTOR: ON", 5)
 
+FlingBtn.Font = Enum.Font.SourceSansBold
+
 -------------------------------------------------------------------------------
--- // ACTIONS
+-- // LOGIC & ACTIONS
 -------------------------------------------------------------------------------
 
 ModeBtn.MouseButton1Click:Connect(function()
@@ -104,6 +110,7 @@ ViewBtn.MouseButton1Click:Connect(function()
     if not TargetPlayer then return end
     IsViewing = not IsViewing
     ViewBtn.Text = IsViewing and "VIEW: ON" or "VIEW: OFF"
+    ViewBtn.TextColor3 = IsViewing and Color3.new(0, 1, 0.5) or Color3.new(1, 1, 1)
     Camera.CameraSubject = IsViewing and TargetPlayer.Character:FindFirstChildOfClass("Humanoid") or Player.Character:FindFirstChildOfClass("Humanoid")
 end)
 
@@ -121,14 +128,10 @@ DetectBtn.MouseButton1Click:Connect(function()
 end)
 
 -------------------------------------------------------------------------------
--- // MAIN ENGINE (LOGIC & RGB EFFECT)
+-- // MAIN ENGINE
 -------------------------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    -- SMOOTH RGB RAINBOW EFFECT
-    local hue = tick() % 5 / 5 -- Mengatur kecepatan rainbow (5 detik per putaran)
-    local rainbowColor = Color3.fromHSV(hue, 1, 1)
-    
-    -- Cek Admin (Jika ada admin, RGB berhenti dan jadi Merah kedip)
+RunService.PostSimulation:Connect(function()
+    -- Admin Visual Warning
     local keywords = {"stars", "st4rs", "st4r", "afz", "afzh", "afzj"} 
     local adminFound = false
     if AutoDetectAdmins then
@@ -138,15 +141,8 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end
+    UIStroke.Color = adminFound and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 150)
 
-    if adminFound then
-        -- Efek kedip merah saat ada admin
-        UIStroke.Color = (math.sin(tick() * 10) > 0) and Color3.new(1, 0, 0) or Color3.new(0.2, 0, 0)
-    else
-        UIStroke.Color = rainbowColor
-    end
-
-    -- Logic Fling
     if IsFlinging and TargetPlayer and TargetPlayer.Character then
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
