@@ -1,7 +1,7 @@
 -- // SECURITY CHECK (PLACE LOCK)
 local AllowedPlaceId = 4924922222
 if game.PlaceId ~= AllowedPlaceId then
-    game.Players.LocalPlayer:Kick("\n[ACCESS DENIED]\nScript ini hanya untuk Brookhaven RP!")
+    game.Players.LocalPlayer:Kick("\n[ACCESS DENIED]\nThis script is for Brookhaven RP only!")
     return
 end
 
@@ -15,24 +15,26 @@ local Camera = workspace.CurrentCamera
 local TargetPlayer = nil
 local IsFlinging = false
 local IsViewing = false
-local AutoDetectAdmins = true
+local AutoDetectUsernames = true
 local CurrentMode = "HELI"
 local Angle = 0
+local LastPosition = nil -- Store position for "Back to Place" feature
 
--- // GUI SETUP (UKURAN DIKECILKAN)
+-- // GUI SETUP
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "AeroV1_UltraMini"
+ScreenGui.Name = "AeroV1_RGB_Edition"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 180, 0, 200) -- Ukuran lebih ramping (180x200)
+MainFrame.Size = UDim2.new(0, 180, 0, 200)
 MainFrame.Position = UDim2.new(0.5, -90, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12) -- Lebih gelap
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
+-- // RGB STROKE
 local UIStroke = Instance.new("UIStroke", MainFrame)
-UIStroke.Thickness = 1.5
-UIStroke.Color = Color3.fromRGB(0, 255, 150)
+UIStroke.Thickness = 2
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 30)
@@ -47,46 +49,36 @@ local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
 ScrollFrame.Size = UDim2.new(1, -6, 1, -35)
 ScrollFrame.Position = UDim2.new(0, 3, 0, 32)
 ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260) -- Tetap bisa scroll banyak fitur
-ScrollFrame.ScrollBarThickness = 3
-ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(0, 255, 150)
+ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260)
+ScrollFrame.ScrollBarThickness = 2
 
 local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
 UIListLayout.Padding = UDim.new(0, 6)
 UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
 
 -- // BUTTON CREATOR
 local function CreateButton(name, text, order, color)
     local btn = Instance.new("TextButton", ScrollFrame)
     btn.Name = name
     btn.LayoutOrder = order 
-    btn.Size = UDim2.new(0.92, 0, 0, 32) -- Tombol sedikit lebih pendek
+    btn.Size = UDim2.new(0.92, 0, 0, 32)
     btn.BackgroundColor3 = color or Color3.fromRGB(25, 25, 25)
     btn.TextColor3 = Color3.new(1, 1, 1)
     btn.Font = Enum.Font.SourceSans
     btn.TextSize = 13
     btn.Text = text
-    btn.BorderSizePixel = 0
-    
-    -- Rounded Corners
-    local corner = Instance.new("UICorner", btn)
-    corner.CornerRadius = UDim.new(0, 4)
-    
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
     return btn
 end
 
--- // INSTANTIATE BUTTONS (URUTAN SESUAI REQUEST)
 local ModeBtn = CreateButton("ModeBtn", "MODE: HELI", 1)
 local TargetBtn = CreateButton("TargetBtn", "SELECT TARGET", 2)
 local ViewBtn = CreateButton("ViewBtn", "VIEW: OFF", 3)
-local FlingBtn = CreateButton("FlingBtn", "LAUNCH FLING", 4, Color3.fromRGB(0, 70, 50))
-local DetectBtn = CreateButton("DetectBtn", "DETECTOR: ON", 5)
-
-FlingBtn.Font = Enum.Font.SourceSansBold
+local FlingBtn = CreateButton("FlingBtn", "LAUNCH", 4, Color3.fromRGB(0, 70, 50))
+local DetectBtn = CreateButton("DetectBtn", "USER DETECTOR: ON", 5)
 
 -------------------------------------------------------------------------------
--- // LOGIC & ACTIONS
+-- // ACTIONS
 -------------------------------------------------------------------------------
 
 ModeBtn.MouseButton1Click:Connect(function()
@@ -110,39 +102,66 @@ ViewBtn.MouseButton1Click:Connect(function()
     if not TargetPlayer then return end
     IsViewing = not IsViewing
     ViewBtn.Text = IsViewing and "VIEW: ON" or "VIEW: OFF"
-    ViewBtn.TextColor3 = IsViewing and Color3.new(0, 1, 0.5) or Color3.new(1, 1, 1)
     Camera.CameraSubject = IsViewing and TargetPlayer.Character:FindFirstChildOfClass("Humanoid") or Player.Character:FindFirstChildOfClass("Humanoid")
 end)
 
 FlingBtn.MouseButton1Click:Connect(function()
     if not TargetPlayer then return end
+    
+    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
     IsFlinging = not IsFlinging
-    FlingBtn.Text = IsFlinging and "STOP" or "LAUNCH"
-    FlingBtn.BackgroundColor3 = IsFlinging and Color3.fromRGB(120, 0, 0) or Color3.fromRGB(0, 70, 50)
-    if IsFlinging then workspace.FallenPartsDestroyHeight = 0/0 end
+    
+    if IsFlinging then
+        -- SAVE SAFE POSITION BEFORE FLINGING
+        LastPosition = hrp.CFrame
+        FlingBtn.Text = "STOP"
+        FlingBtn.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
+        workspace.FallenPartsDestroyHeight = 0/0
+    else
+        -- BACK TO PLACE (AUTOMATIC RETURN)
+        FlingBtn.Text = "LAUNCH"
+        FlingBtn.BackgroundColor3 = Color3.fromRGB(0, 70, 50)
+        if LastPosition then
+            hrp.CFrame = LastPosition
+            LastPosition = nil -- Reset after successful return
+        end
+    end
 end)
 
 DetectBtn.MouseButton1Click:Connect(function()
-    AutoDetectAdmins = not AutoDetectAdmins
-    DetectBtn.Text = AutoDetectAdmins and "DETECTOR: ON" or "DETECTOR: OFF"
+    AutoDetectUsernames = not AutoDetectUsernames
+    DetectBtn.Text = AutoDetectUsernames and "USER DETECTOR: ON" or "USER DETECTOR: OFF"
 end)
 
 -------------------------------------------------------------------------------
 -- // MAIN ENGINE
 -------------------------------------------------------------------------------
-RunService.PostSimulation:Connect(function()
-    -- Admin Visual Warning
+RunService.RenderStepped:Connect(function()
+    -- SMOOTH RGB RAINBOW EFFECT
+    local hue = tick() % 5 / 5
+    local rainbowColor = Color3.fromHSV(hue, 1, 1)
+    
+    -- Username Detector Logic
     local keywords = {"stars", "st4rs", "st4r", "afz", "afzh", "afzj"} 
-    local adminFound = false
-    if AutoDetectAdmins then
+    local userFound = false
+    if AutoDetectUsernames then
         for _, p in ipairs(Players:GetPlayers()) do
             for _, key in ipairs(keywords) do
-                if p.Name:lower():find(key) then adminFound = true break end
+                if p.Name:lower():find(key) then userFound = true break end
             end
         end
     end
-    UIStroke.Color = adminFound and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 150)
 
+    if userFound then
+        -- Flashing red effect when a username is detected
+        UIStroke.Color = (math.sin(tick() * 10) > 0) and Color3.new(1, 0, 0) or Color3.new(0.2, 0, 0)
+    else
+        UIStroke.Color = rainbowColor
+    end
+
+    -- Fling Logic
     if IsFlinging and TargetPlayer and TargetPlayer.Character then
         local char = Player.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -172,3 +191,4 @@ RunService.PostSimulation:Connect(function()
         end
     end
 end)
+
