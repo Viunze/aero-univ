@@ -1,8 +1,8 @@
 -- // SECURITY CHECK (PLACE LOCK)
 local AllowedPlaceId = 4924922222
 if game.PlaceId ~= AllowedPlaceId then
-    game.Players.LocalPlayer:Kick("\n[ACCESS DENIED]\nScript ini hanya untuk Brookhaven RP!")
-    return
+    game.Players.LocalPlayer:Kick("\n[AERO SECURITY]\nThis script can only be used in:\nBrookhaven RP (ID: " .. AllowedPlaceId .. ")")
+    return 
 end
 
 -- // SERVICES
@@ -15,23 +15,25 @@ local Camera = workspace.CurrentCamera
 local TargetPlayer = nil
 local IsFlinging = false
 local IsViewing = false
-local AutoDetectAdmins = true
 local CurrentMode = "HELI"
 local Angle = 0
-local LastPosition = nil -- Fitur Back to Place
+local LastPosition = nil 
+
+-- // SETTINGS
+local FlingPower = 9e7 
+local RotPower = 9e8
 
 -- // GUI SETUP
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or Player:WaitForChild("PlayerGui"))
-ScreenGui.Name = "AeroV1_RGB_Edition"
+ScreenGui.Name = "AERO_V1"
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 180, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -90, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.Size = UDim2.new(0, 200, 0, 225)
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -112)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
--- // RGB STROKE (RAINBOW BORDER)
 local UIStroke = Instance.new("UIStroke", MainFrame)
 UIStroke.Thickness = 2
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -39,49 +41,103 @@ UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 local Title = Instance.new("TextLabel", MainFrame)
 Title.Size = UDim2.new(1, 0, 0, 30)
 Title.Text = "AERO V1"
+Title.TextSize = 22 
 Title.TextColor3 = Color3.new(1, 1, 1)
 Title.BackgroundTransparency = 1
 Title.Font = Enum.Font.SourceSansBold
-Title.TextSize = 14
 
--- // SCROLLING CONTAINER
-local ScrollFrame = Instance.new("ScrollingFrame", MainFrame)
-ScrollFrame.Size = UDim2.new(1, -6, 1, -35)
-ScrollFrame.Position = UDim2.new(0, 3, 0, 32)
-ScrollFrame.BackgroundTransparency = 1
-ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260)
-ScrollFrame.ScrollBarThickness = 2
-ScrollFrame.ScrollBarImageColor3 = Color3.new(1,1,1)
+local ModeBtn = Instance.new("TextButton", MainFrame)
+ModeBtn.Size = UDim2.new(0.9, 0, 0, 30); ModeBtn.Position = UDim2.new(0.05, 0, 0.16, 0)
+ModeBtn.Text = "MODE: HELI"; ModeBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30); ModeBtn.TextColor3 = Color3.new(1, 1, 1)
 
-local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
-UIListLayout.Padding = UDim.new(0, 6)
-UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
+local TargetBtn = Instance.new("TextButton", MainFrame)
+TargetBtn.Size = UDim2.new(0.9, 0, 0, 30); TargetBtn.Position = UDim2.new(0.05, 0, 0.32, 0)
+TargetBtn.Text = "SELECT TARGET"; TargetBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30); TargetBtn.TextColor3 = Color3.new(1, 1, 1)
 
--- // BUTTON CREATOR
-local function CreateButton(name, text, order, color)
-    local btn = Instance.new("TextButton", ScrollFrame)
-    btn.Name = name
-    btn.LayoutOrder = order 
-    btn.Size = UDim2.new(0.92, 0, 0, 32)
-    btn.BackgroundColor3 = color or Color3.fromRGB(25, 25, 25)
-    btn.TextColor3 = Color3.new(1, 1, 1)
-    btn.Font = Enum.Font.SourceSans
-    btn.TextSize = 13
-    btn.Text = text
-    btn.BorderSizePixel = 0
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-    return btn
-end
+local ViewBtn = Instance.new("TextButton", MainFrame)
+ViewBtn.Size = UDim2.new(0.9, 0, 0, 30); ViewBtn.Position = UDim2.new(0.05, 0, 0.48, 0)
+ViewBtn.Text = "VIEW: OFF"; ViewBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30); ViewBtn.TextColor3 = Color3.new(1, 1, 1)
 
-local ModeBtn = CreateButton("ModeBtn", "MODE: HELI", 1)
-local TargetBtn = CreateButton("TargetBtn", "SELECT TARGET", 2)
-local ViewBtn = CreateButton("ViewBtn", "VIEW: OFF", 3)
-local FlingBtn = CreateButton("FlingBtn", "LAUNCH", 4, Color3.fromRGB(0, 70, 50))
-local DetectBtn = CreateButton("DetectBtn", "DETECTOR: ON", 5)
+local FlingBtn = Instance.new("TextButton", MainFrame)
+FlingBtn.Size = UDim2.new(0.9, 0, 0, 45); FlingBtn.Position = UDim2.new(0.05, 0, 0.70, 0)
+FlingBtn.Text = "LAUNCH"; FlingBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 80); FlingBtn.TextColor3 = Color3.new(1, 1, 1)
 
 -------------------------------------------------------------------------------
--- // ACTIONS
+-- // VEHICLE LOGIC
+-------------------------------------------------------------------------------
+
+local function GetVehicleBase()
+    local char = Player.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if CurrentMode == "HELI" then
+        local folder = workspace:FindFirstChild("Helicopters")
+        if folder then
+            for _, heli in ipairs(folder:GetChildren()) do
+                local seat = heli:FindFirstChild("PilotSeat", true)
+                if seat and seat:IsA("VehicleSeat") then return seat end
+            end
+        end
+    else
+        if hum and hum.SeatPart and hum.SeatPart:IsA("VehicleSeat") then return hum.SeatPart end
+        local vehFolder = workspace:FindFirstChild("Vehicles")
+        if vehFolder then
+            for _, v in ipairs(vehFolder:GetChildren()) do
+                local s = v:FindFirstChildWhichIsA("VehicleSeat", true)
+                if s then return s end
+            end
+        end
+    end
+    return nil
+end
+
+-------------------------------------------------------------------------------
+-- // MAIN LOOP (RGB & FLING)
+-------------------------------------------------------------------------------
+
+RunService.PostSimulation:Connect(function()
+    -- RGB Border
+    UIStroke.Color = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+
+    if IsFlinging and TargetPlayer and TargetPlayer.Character then
+        local seat = GetVehicleBase()
+        local TChar = TargetPlayer.Character
+        local TRoot = TChar:FindFirstChild("HumanoidRootPart")
+        local THum = TChar:FindFirstChildOfClass("Humanoid")
+        local MyChar = Player.Character
+
+        if seat and TRoot and THum and MyChar then
+            local vehicleModel = seat:FindFirstAncestorOfClass("Model") or seat.Parent
+            
+            if MyChar.Humanoid.SeatPart ~= seat then
+                seat:Sit(MyChar.Humanoid)
+            end
+
+            Angle = Angle + 100
+            local MoveDir = THum.MoveDirection * (TRoot.Velocity.Magnitude / 1.25)
+            local OrbitPos = TRoot.Position + MoveDir + Vector3.new(0, 1, 0)
+            local FinalCF = CFrame.new(OrbitPos) * CFrame.Angles(math.rad(Angle), math.rad(Angle), 0)
+            
+            if vehicleModel:IsA("Model") and vehicleModel.PrimaryPart then
+                vehicleModel:SetPrimaryPartCFrame(FinalCF)
+            else
+                seat.CFrame = FinalCF
+            end
+
+            seat.AssemblyLinearVelocity = Vector3.new(FlingPower, FlingPower, FlingPower)
+            seat.AssemblyAngularVelocity = Vector3.new(RotPower, RotPower, RotPower)
+
+            for _, p in ipairs(vehicleModel:GetDescendants()) do
+                if p:IsA("BasePart") then
+                    p.CanCollide = true
+                    p.Velocity = seat.AssemblyLinearVelocity
+                end
+            end
+        end
+    end
+end)
+
+-------------------------------------------------------------------------------
+-- // BUTTON ACTIONS
 -------------------------------------------------------------------------------
 
 ModeBtn.MouseButton1Click:Connect(function()
@@ -95,7 +151,7 @@ TargetBtn.MouseButton1Click:Connect(function()
     for _, p in ipairs(Players:GetPlayers()) do if p ~= Player then table.insert(plrs, p) end end
     if #plrs > 0 then
         TargetPlayer = plrs[pIdx]
-        TargetBtn.Text = "TARGET: " .. TargetPlayer.Name:sub(1,8)
+        TargetBtn.Text = TargetPlayer.Name:sub(1,10)
         if IsViewing then Camera.CameraSubject = TargetPlayer.Character:FindFirstChildOfClass("Humanoid") end
         pIdx = (pIdx % #plrs) + 1
     end
@@ -111,169 +167,37 @@ end)
 FlingBtn.MouseButton1Click:Connect(function()
     if not TargetPlayer then return end
     
-    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+
     IsFlinging = not IsFlinging
     
-    FlingBtn.Text = IsFlinging and "STOP" or "LAUNCH"
-    FlingBtn.BackgroundColor3 = IsFlinging and Color3.fromRGB(120, 0, 0) or Color3.fromRGB(0, 70, 50)
-    
     if IsFlinging then
-        -- Simpan posisi sebelum terpental
         if hrp then LastPosition = hrp.CFrame end
-        workspace.FallenPartsDestroyHeight = 0/0
+        workspace.FallenPartsDestroyHeight = 0/0 
+        FlingBtn.Text = "STOP"
+        FlingBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
     else
-        -- Fitur Back to Place: Teleport kembali saat stop
-        if hrp and LastPosition then
+        FlingBtn.Text = "LAUNCH"
+        FlingBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 80)
+        
+        if hum and hrp and LastPosition then
+            -- 1. Hentikan semua gerakan fisik
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            
+            -- 2. Lepas dari kursi
+            hum.Sit = false
+            
+            -- 3. Teleport dulu baru lompat (agar posisi stabil)
             hrp.CFrame = LastPosition
+            task.wait(0.05)
+            hum.Jump = true 
+            
             LastPosition = nil
         end
+
+        workspace.FallenPartsDestroyHeight = -500 
     end
 end)
-
-DetectBtn.MouseButton1Click:Connect(function()
-    AutoDetectAdmins = not AutoDetectAdmins
-    DetectBtn.Text = AutoDetectAdmins and "DETECTOR: ON" or "DETECTOR: OFF"
-end)
-
--------------------------------------------------------------------------------
--- // MAIN ENGINE (LOGIC & RGB EFFECT)
--------------------------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    -- SMOOTH RGB RAINBOW EFFECT
-    local hue = tick() % 5 / 5 -- Mengatur kecepatan rainbow (5 detik per putaran)
-    local rainbowColor = Color3.fromHSV(hue, 1, 1)
-    
-    -- Cek Admin (Jika ada admin, RGB berhenti dan jadi Merah kedip)
-    local keywords = {"stars", "st4rs", "st4r", "afz", "afzh", "afzj"} 
-    local adminFound = false
-    if AutoDetectAdmins then
-        for _, p in ipairs(Players:GetPlayers()) do
-            for _, key in ipairs(keywords) do
-                if p.Name:lower():find(key) then adminFound = true break end
-            end
-        end
-    end
-
-    if adminFound then
-        -- Efek kedip merah saat ada admin
-        UIStroke.Color = (math.sin(tick() * 10) > 0) and Color3.new(1, 0, 0) or Color3.new(0.2, 0, 0)
-    else
-        UIStroke.Color = rainbowColor
-    end
-
-    -- Logic Fling
-    if IsFlinging and TargetPlayer and TargetPlayer.Character then
-        local char = Player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local TRoot = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local seat = nil
-        
-        if CurrentMode == "HELI" then
-            local folder = workspace:FindFirstChild("Helicopters")
-            if folder then
-                for _, v in ipairs(folder:GetChildren()) do
-                    local s = v:FindFirstChild("PilotSeat", true)
-                    if s then seat = s break end
-                end
-            end
-        else
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.SeatPart then seat = hum.SeatPart end
-        end
-
-        if seat and hrp and TRoot then
-            Angle = Angle + 100
-            local TargetCF = CFrame.new(TRoot.Position) * CFrame.Angles(math.rad(Angle), 0, 0)
-            seat.CFrame = TargetCF
-            hrp.CFrame = TargetCF
-            seat.AssemblyLinearVelocity = Vector3.new(9e7, 9e7, 9e7)
-            seat.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
-        end
-    end
-end)
-    if not TargetPlayer then return end
-    
-    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    IsFlinging = not IsFlinging
-    
-    if IsFlinging then
-        -- SAVE SAFE POSITION BEFORE FLINGING
-        LastPosition = hrp.CFrame
-        FlingBtn.Text = "STOP"
-        FlingBtn.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
-        workspace.FallenPartsDestroyHeight = 0/0
-    else
-        -- BACK TO PLACE (AUTOMATIC RETURN)
-        FlingBtn.Text = "LAUNCH"
-        FlingBtn.BackgroundColor3 = Color3.fromRGB(0, 70, 50)
-        if LastPosition then
-            hrp.CFrame = LastPosition
-            LastPosition = nil -- Reset after successful return
-        end
-    end
-end)
-
-DetectBtn.MouseButton1Click:Connect(function()
-    AutoDetectUsernames = not AutoDetectUsernames
-    DetectBtn.Text = AutoDetectUsernames and "USER DETECTOR: ON" or "USER DETECTOR: OFF"
-end)
-
--------------------------------------------------------------------------------
--- // MAIN ENGINE
--------------------------------------------------------------------------------
-RunService.RenderStepped:Connect(function()
-    -- SMOOTH RGB RAINBOW EFFECT
-    local hue = tick() % 5 / 5
-    local rainbowColor = Color3.fromHSV(hue, 1, 1)
-    
-    -- Username Detector Logic
-    local keywords = {"stars", "st4rs", "st4r", "afz", "afzh", "afzj"} 
-    local userFound = false
-    if AutoDetectUsernames then
-        for _, p in ipairs(Players:GetPlayers()) do
-            for _, key in ipairs(keywords) do
-                if p.Name:lower():find(key) then userFound = true break end
-            end
-        end
-    end
-
-    if userFound then
-        -- Flashing red effect when a username is detected
-        UIStroke.Color = (math.sin(tick() * 10) > 0) and Color3.new(1, 0, 0) or Color3.new(0.2, 0, 0)
-    else
-        UIStroke.Color = rainbowColor
-    end
-
-    -- Fling Logic
-    if IsFlinging and TargetPlayer and TargetPlayer.Character then
-        local char = Player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local TRoot = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local seat = nil
-        
-        if CurrentMode == "HELI" then
-            local folder = workspace:FindFirstChild("Helicopters")
-            if folder then
-                for _, v in ipairs(folder:GetChildren()) do
-                    local s = v:FindFirstChild("PilotSeat", true)
-                    if s then seat = s break end
-                end
-            end
-        else
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum and hum.SeatPart then seat = hum.SeatPart end
-        end
-
-        if seat and hrp and TRoot then
-            Angle = Angle + 100
-            local TargetCF = CFrame.new(TRoot.Position) * CFrame.Angles(math.rad(Angle), 0, 0)
-            seat.CFrame = TargetCF
-            hrp.CFrame = TargetCF
-            seat.AssemblyLinearVelocity = Vector3.new(9e7, 9e7, 9e7)
-            seat.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
-        end
-    end
-end)
-
