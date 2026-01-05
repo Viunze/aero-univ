@@ -1,7 +1,7 @@
 -- // SECURITY CHECK (PLACE LOCK)
 local AllowedPlaceId = 4924922222
 if game.PlaceId ~= AllowedPlaceId then
-    game.Players.LocalPlayer:Kick("\n[ACCESS DENIED]\nThis script is for Brookhaven RP only!")
+    game.Players.LocalPlayer:Kick("\n[ACCESS DENIED]\nScript ini hanya untuk Brookhaven RP!")
     return
 end
 
@@ -15,10 +15,10 @@ local Camera = workspace.CurrentCamera
 local TargetPlayer = nil
 local IsFlinging = false
 local IsViewing = false
-local AutoDetectUsernames = true
+local AutoDetectAdmins = true
 local CurrentMode = "HELI"
 local Angle = 0
-local LastPosition = nil -- Store position for "Back to Place" feature
+local LastPosition = nil -- Fitur Back to Place
 
 -- // GUI SETUP
 local ScreenGui = Instance.new("ScreenGui", (gethui and gethui()) or Player:WaitForChild("PlayerGui"))
@@ -31,7 +31,7 @@ MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MainFrame.Active = true
 MainFrame.Draggable = true
 
--- // RGB STROKE
+-- // RGB STROKE (RAINBOW BORDER)
 local UIStroke = Instance.new("UIStroke", MainFrame)
 UIStroke.Thickness = 2
 UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -51,10 +51,12 @@ ScrollFrame.Position = UDim2.new(0, 3, 0, 32)
 ScrollFrame.BackgroundTransparency = 1
 ScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 260)
 ScrollFrame.ScrollBarThickness = 2
+ScrollFrame.ScrollBarImageColor3 = Color3.new(1,1,1)
 
 local UIListLayout = Instance.new("UIListLayout", ScrollFrame)
 UIListLayout.Padding = UDim.new(0, 6)
 UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder 
 
 -- // BUTTON CREATOR
 local function CreateButton(name, text, order, color)
@@ -67,6 +69,7 @@ local function CreateButton(name, text, order, color)
     btn.Font = Enum.Font.SourceSans
     btn.TextSize = 13
     btn.Text = text
+    btn.BorderSizePixel = 0
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
     return btn
 end
@@ -75,7 +78,7 @@ local ModeBtn = CreateButton("ModeBtn", "MODE: HELI", 1)
 local TargetBtn = CreateButton("TargetBtn", "SELECT TARGET", 2)
 local ViewBtn = CreateButton("ViewBtn", "VIEW: OFF", 3)
 local FlingBtn = CreateButton("FlingBtn", "LAUNCH", 4, Color3.fromRGB(0, 70, 50))
-local DetectBtn = CreateButton("DetectBtn", "USER DETECTOR: ON", 5)
+local DetectBtn = CreateButton("DetectBtn", "DETECTOR: ON", 5)
 
 -------------------------------------------------------------------------------
 -- // ACTIONS
@@ -106,6 +109,88 @@ ViewBtn.MouseButton1Click:Connect(function()
 end)
 
 FlingBtn.MouseButton1Click:Connect(function()
+    if not TargetPlayer then return end
+    
+    local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
+    IsFlinging = not IsFlinging
+    
+    FlingBtn.Text = IsFlinging and "STOP" or "LAUNCH"
+    FlingBtn.BackgroundColor3 = IsFlinging and Color3.fromRGB(120, 0, 0) or Color3.fromRGB(0, 70, 50)
+    
+    if IsFlinging then
+        -- Simpan posisi sebelum terpental
+        if hrp then LastPosition = hrp.CFrame end
+        workspace.FallenPartsDestroyHeight = 0/0
+    else
+        -- Fitur Back to Place: Teleport kembali saat stop
+        if hrp and LastPosition then
+            hrp.CFrame = LastPosition
+            LastPosition = nil
+        end
+    end
+end)
+
+DetectBtn.MouseButton1Click:Connect(function()
+    AutoDetectAdmins = not AutoDetectAdmins
+    DetectBtn.Text = AutoDetectAdmins and "DETECTOR: ON" or "DETECTOR: OFF"
+end)
+
+-------------------------------------------------------------------------------
+-- // MAIN ENGINE (LOGIC & RGB EFFECT)
+-------------------------------------------------------------------------------
+RunService.RenderStepped:Connect(function()
+    -- SMOOTH RGB RAINBOW EFFECT
+    local hue = tick() % 5 / 5 -- Mengatur kecepatan rainbow (5 detik per putaran)
+    local rainbowColor = Color3.fromHSV(hue, 1, 1)
+    
+    -- Cek Admin (Jika ada admin, RGB berhenti dan jadi Merah kedip)
+    local keywords = {"stars", "st4rs", "st4r", "afz", "afzh", "afzj"} 
+    local adminFound = false
+    if AutoDetectAdmins then
+        for _, p in ipairs(Players:GetPlayers()) do
+            for _, key in ipairs(keywords) do
+                if p.Name:lower():find(key) then adminFound = true break end
+            end
+        end
+    end
+
+    if adminFound then
+        -- Efek kedip merah saat ada admin
+        UIStroke.Color = (math.sin(tick() * 10) > 0) and Color3.new(1, 0, 0) or Color3.new(0.2, 0, 0)
+    else
+        UIStroke.Color = rainbowColor
+    end
+
+    -- Logic Fling
+    if IsFlinging and TargetPlayer and TargetPlayer.Character then
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local TRoot = TargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local seat = nil
+        
+        if CurrentMode == "HELI" then
+            local folder = workspace:FindFirstChild("Helicopters")
+            if folder then
+                for _, v in ipairs(folder:GetChildren()) do
+                    local s = v:FindFirstChild("PilotSeat", true)
+                    if s then seat = s break end
+                end
+            end
+        else
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum and hum.SeatPart then seat = hum.SeatPart end
+        end
+
+        if seat and hrp and TRoot then
+            Angle = Angle + 100
+            local TargetCF = CFrame.new(TRoot.Position) * CFrame.Angles(math.rad(Angle), 0, 0)
+            seat.CFrame = TargetCF
+            hrp.CFrame = TargetCF
+            seat.AssemblyLinearVelocity = Vector3.new(9e7, 9e7, 9e7)
+            seat.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
+        end
+    end
+end)
     if not TargetPlayer then return end
     
     local hrp = Player.Character and Player.Character:FindFirstChild("HumanoidRootPart")
